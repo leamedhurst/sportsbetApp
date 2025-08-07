@@ -1,6 +1,10 @@
 {
   "name": "Fast Bets Lookup",
-  "author": "Your Name",
+  "author": {
+    "name": "Jean Thompson",
+    "email": "support@omniwear.com",
+    "url": "https://www.omniwear.com/profiles/jthompson"
+  },
   "defaultLocale": "en",
   "private": true,
   "location": {

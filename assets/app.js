@@ -94,7 +94,7 @@
     });
 
     const actions = h('div', { class: 'actions' });
-    const fetchBtn = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Get Attributes');
+    const fetchBtn = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Get Bet');
     const confirmBtn = h('button', { type: 'button', id: 'confirm', class: 'btn btn-secondary' }, 'Confirm');
 
     const error = h('div', { class: 'error' });

@@ -1,7 +1,5 @@
 (function () {
-  // === CONFIG: replace with your real custom field ID ===
-  // If your field id is 987654321, this becomes 'custom_field_987654321'
-  const FASTCODE_FIELD = 'custom_field_123456789';
+  const FASTCODE_FIELD = 'custom_field_13448269212559'; // ← Your actual custom field
 
   const client = ZAFClient.init();
 
@@ -15,7 +13,6 @@
     }, 0);
   }
 
-  // Small helper to create elements
   function h(tag, attrs = {}, children = []) {
     const el = document.createElement(tag);
     Object.entries(attrs || {}).forEach(([k, v]) => {
@@ -32,7 +29,6 @@
     return el;
   }
 
-  // Render attributes as cards (plain CSS classes that mimic styled-components option)
   function renderKV(obj) {
     const container = h('div', { class: 'attributes-container' });
 
@@ -57,23 +53,19 @@
     return container;
   }
 
-  // ---------- Ticket field helpers ----------
   async function getFastcodeFromTicket() {
-    // ZAF v2: property name is ticket.customField:<field_key>
     const key = `ticket.customField:${FASTCODE_FIELD}`;
     const resp = await client.get(key);
     return resp[key] || '';
   }
 
   function subscribeToFastcodeUIChanges(onChange) {
-    // Fires when the AGENT edits the field in the UI
     client.on(`ticket.${FASTCODE_FIELD}.changed`, (e) => {
       const v = e && e.newValue ? String(e.newValue).trim() : '';
       onChange(v);
     });
   }
 
-  // ---------- UI ----------
   function buildUI(container) {
     const wrap = h('div', { class: 'container' });
     const panel = h('div', { class: 'panel' });
@@ -84,7 +76,6 @@
     const group = h('div', { class: 'form-group' });
     const label = h('label', { class: 'label', for: 'fastcode' }, 'Enter Fastcode');
 
-    // No placeholder (as requested). Add autocomplete off to avoid browser prefill noise.
     const input = h('input', {
       id: 'fastcode',
       class: 'input',
@@ -100,7 +91,6 @@
     const error = h('div', { class: 'error' });
     const results = h('div', { id: 'results' });
 
-    // Hide Confirm until results loaded
     confirmBtn.style.display = 'none';
 
     group.appendChild(label);
@@ -110,7 +100,6 @@
     form.appendChild(group);
     form.appendChild(actions);
 
-    // Confirm: reset UI + hide again
     confirmBtn.addEventListener('click', () => {
       input.value = '';
       results.innerHTML = '';
@@ -119,7 +108,6 @@
       resize();
     });
 
-    // Form submit triggers the fetch flow
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       runFetch({
@@ -141,7 +129,6 @@
     return { input, fetchBtn, confirmBtn, results, error };
   }
 
-  // Centralized fetch/render so we can call from multiple places
   async function runFetch(ctx) {
     const { code, fetchBtn, confirmBtn, results, error } = ctx;
 
@@ -157,7 +144,6 @@
 
     fetchBtn.disabled = true;
 
-    // Loading state
     results.appendChild(
       h('div', { class: 'loading-container' }, [
         h('div', {}, 'Loading…'),
@@ -202,7 +188,6 @@
         );
       }
 
-      // Show Confirm after successful render
       confirmBtn.style.display = 'inline-flex';
     } catch (err) {
       console.error(err);
@@ -214,57 +199,49 @@
     }
   }
 
-  // ---------- Init & Wiring ----------
   async function init() {
     const root = document.getElementById('app');
     const ui = buildUI(root);
     resize();
 
-    // 1) On initial load, pull from ticket field (if present)
     try {
       const fc = await getFastcodeFromTicket();
       if (fc) {
         ui.input.value = fc;
-        // Auto-fetch if you want immediate results on load:
-        // await runFetch({ code: fc, ...ui });
+        await runFetch({ code: fc, ...ui }); // ← auto-fetch on initial load
       }
     } catch (e) {
       console.warn('Could not read fastcode field on load:', e);
     }
 
-    // 2) When app pane is activated (agent switches back), re-read field
     client.on('app.activated', async () => {
       try {
         const fc = await getFastcodeFromTicket();
         if (fc && fc !== ui.input.value) {
           ui.input.value = fc;
-          // Auto-fetch on activation change (optional):
-          // await runFetch({ code: fc, ...ui });
+          await runFetch({ code: fc, ...ui }); // ← auto-fetch on re-activation
         }
       } catch (e) {
         console.warn('app.activated read failed:', e);
       }
     });
 
-    // 3) After ticket is saved (triggers may have modified the field), re-read
     client.on('ticket.submit.done', async () => {
       try {
         const fc = await getFastcodeFromTicket();
         if (fc && fc !== ui.input.value) {
           ui.input.value = fc;
-          // Auto-fetch after save (optional):
-          // await runFetch({ code: fc, ...ui });
+          await runFetch({ code: fc, ...ui }); // ← auto-fetch after save
         }
       } catch (e) {
         console.warn('ticket.submit.done read failed:', e);
       }
     });
 
-    // 4) Live updates when the AGENT edits the field in the UI
+    // Automatically trigger search when field is updated in UI
     subscribeToFastcodeUIChanges(async (v) => {
       ui.input.value = v || '';
-      // Auto-fetch on UI edit (optional):
-      // if (v) await runFetch({ code: v, ...ui });
+      if (v) await runFetch({ code: v, ...ui });
     });
   }
 

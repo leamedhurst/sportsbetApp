@@ -1,9 +1,63 @@
 (function () {
-  const FASTCODE_FIELD = 'custom_field_13448269212559'; // ← Your actual custom field
-
+  let FASTCODE_FIELD = 'custom_field_13448269212559'; // fallback
   const client = ZAFClient.init();
 
-  // ---------- Utils ----------
+  // Utility to set up UI and event listeners once FASTCODE_FIELD is resolved
+  async function initApp() {
+    const root = document.getElementById('app');
+    const ui = buildUI(root);
+    resize();
+
+    try {
+      const fc = await getFastcodeFromTicket();
+      if (fc) {
+        ui.input.value = fc;
+        await runFetch({ code: fc, ...ui });
+      }
+    } catch (e) {
+      console.warn('Could not read fastcode field on load:', e);
+    }
+
+    client.on('app.activated', async () => {
+      try {
+        const fc = await getFastcodeFromTicket();
+        if (fc && fc !== ui.input.value) {
+          ui.input.value = fc;
+          await runFetch({ code: fc, ...ui });
+        }
+      } catch (e) {
+        console.warn('app.activated read failed:', e);
+      }
+    });
+
+    client.on('ticket.submit.done', async () => {
+      try {
+        const fc = await getFastcodeFromTicket();
+        if (fc && fc !== ui.input.value) {
+          ui.input.value = fc;
+          await runFetch({ code: fc, ...ui });
+        }
+      } catch (e) {
+        console.warn('ticket.submit.done read failed:', e);
+      }
+    });
+
+    subscribeToFastcodeUIChanges(async (v) => {
+      ui.input.value = v || '';
+      if (v) await runFetch({ code: v, ...ui });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    client.metadata().then((meta) => {
+      const configuredId = meta.settings.custom_field_id;
+      if (configuredId && /^\d+$/.test(configuredId)) {
+        FASTCODE_FIELD = 'custom_field_' + configuredId;
+      }
+      initApp(); // only start app once FASTCODE_FIELD is finalized
+    });
+  });
+
   function resize() {
     setTimeout(() => {
       client.invoke('resize', {
@@ -100,12 +154,60 @@
     form.appendChild(group);
     form.appendChild(actions);
 
-    confirmBtn.addEventListener('click', () => {
-      input.value = '';
-      results.innerHTML = '';
-      error.textContent = '';
-      confirmBtn.style.display = 'none';
-      resize();
+    confirmBtn.addEventListener('click', async () => {
+      try {
+        const allCards = results.querySelectorAll('.attribute-card');
+    
+        // Extract values from the displayed data
+        let market, stake, winner, price;
+    
+        allCards.forEach(card => {
+          const key = card.querySelector('.attribute-key')?.textContent?.trim();
+          const value = card.querySelector('.attribute-value')?.textContent?.trim();
+    
+          if (/market/i.test(key)) market = value;
+          if (/stake/i.test(key)) stake = value;
+          if (/winner/i.test(key)) winner = value;
+          if (/price/i.test(key)) price = value;
+        });
+    
+        if (!market || !stake || !winner || !price) {
+          alert("Missing required data from the bet to confirm.");
+          return;
+        }
+    
+        const message = `Live Bet Confirmed for ${market} with stake of ${stake} result ${winner} and the price ${price}`;
+    
+        // Get ticket ID
+        const { ticket } = await client.get('ticket');
+        const ticketId = ticket.id;
+    
+        // Submit internal note
+        await client.request({
+          url: `/api/v2/tickets/${ticketId}.json`,
+          type: 'PUT',
+          dataType: 'json',
+          contentType: 'application/json',
+          data: JSON.stringify({
+            ticket: {
+              comment: {
+                body: message,
+                public: false
+              }
+            }
+          })
+        });
+    
+        // Clear UI
+        input.value = '';
+        results.innerHTML = '';
+        error.textContent = '';
+        confirmBtn.style.display = 'none';
+        resize();
+      } catch (e) {
+        console.error('Failed to confirm bet:', e);
+        alert('Failed to confirm bet. Please try again.');
+      }
     });
 
     form.addEventListener('submit', async (e) => {
@@ -198,52 +300,4 @@
       resize();
     }
   }
-
-  async function init() {
-    const root = document.getElementById('app');
-    const ui = buildUI(root);
-    resize();
-
-    try {
-      const fc = await getFastcodeFromTicket();
-      if (fc) {
-        ui.input.value = fc;
-        await runFetch({ code: fc, ...ui }); // ← auto-fetch on initial load
-      }
-    } catch (e) {
-      console.warn('Could not read fastcode field on load:', e);
-    }
-
-    client.on('app.activated', async () => {
-      try {
-        const fc = await getFastcodeFromTicket();
-        if (fc && fc !== ui.input.value) {
-          ui.input.value = fc;
-          await runFetch({ code: fc, ...ui }); // ← auto-fetch on re-activation
-        }
-      } catch (e) {
-        console.warn('app.activated read failed:', e);
-      }
-    });
-
-    client.on('ticket.submit.done', async () => {
-      try {
-        const fc = await getFastcodeFromTicket();
-        if (fc && fc !== ui.input.value) {
-          ui.input.value = fc;
-          await runFetch({ code: fc, ...ui }); // ← auto-fetch after save
-        }
-      } catch (e) {
-        console.warn('ticket.submit.done read failed:', e);
-      }
-    });
-
-    // Automatically trigger search when field is updated in UI
-    subscribeToFastcodeUIChanges(async (v) => {
-      ui.input.value = v || '';
-      if (v) await runFetch({ code: v, ...ui });
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded', init);
 })();

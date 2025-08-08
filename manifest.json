@@ -27,6 +27,13 @@
       "required": false,
       "secure": false,
       "label": "Default fastcode (optional)"
+    },
+    {
+      "name": "custom_field_id",
+      "type": "text",
+      "required": false,
+      "default": "13448269212559",
+      "label": "Custom field ID for Fastcode"
     }
   ]
 }
